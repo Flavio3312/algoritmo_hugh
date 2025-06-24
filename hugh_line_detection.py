@@ -17,18 +17,15 @@ Año: 2025
 
 
 def distancia_punto_a_linea(p, a, b):
-    p = np.array(p)
-    a = np.array(a)
-    b = np.array(b)
+    p, a, b = np.array(p), np.array(a), np.array(b)
     if np.all(a == b):
         return np.linalg.norm(p - a)
-    else:
-        line_vec = b - a
-        p_vec = p - a
-        t = np.dot(p_vec, line_vec) / np.dot(line_vec, line_vec)
-        t = np.clip(t, 0, 1)
-        proj = a + t * line_vec
-        return np.linalg.norm(p - proj)
+    line_vec = b - a
+    p_vec = p - a
+    t = np.dot(p_vec, line_vec) / np.dot(line_vec, line_vec)
+    t = np.clip(t, 0, 1)
+    proyeccion = a + t * line_vec
+    return np.linalg.norm(p - proyeccion)
 
 def detectar_lineas_hough(imagen_path, centro_a=(391, 200), mostrar=True, guardar_salida=False):
     img = cv2.imread(imagen_path)
@@ -38,26 +35,33 @@ def detectar_lineas_hough(imagen_path, centro_a=(391, 200), mostrar=True, guarda
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-
     lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=80, minLineLength=30, maxLineGap=10)
+
     output = img.copy()
-    count = 0
+    lineas_cercanas = []
 
     if lines is not None:
         for line in lines:
-            x1,y1,x2,y2 = line[0]
-            dist = distancia_punto_a_linea(centro_a, (x1,y1), (x2,y2))
+            x1, y1, x2, y2 = line[0]
+            dist = distancia_punto_a_linea(centro_a, (x1, y1), (x2, y2))
             if dist < 10:
-                cv2.line(output, (x1,y1), (x2,y2), (0,255,0), 2)
-                count += 1
+                lineas_cercanas.append(((x1, y1, x2, y2), dist))
 
-    cv2.circle(output, centro_a, 5, (0,0,255), -1)
+    # Ordenar por cercanía y quedarse con las 5 más próximas
+    lineas_cercanas.sort(key=lambda x: x[1])
+    mejores_lineas = lineas_cercanas[:5]
+
+    # Dibujar líneas seleccionadas
+    for (x1, y1, x2, y2), _ in mejores_lineas:
+        cv2.line(output, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+    cv2.circle(output, centro_a, 5, (0, 0, 255), -1)
     cv2.putText(output, "A", (centro_a[0]+5, centro_a[1]-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
 
     if mostrar:
-        plt.figure(figsize=(10,6))
+        plt.figure(figsize=(10, 6))
         plt.imshow(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
-        plt.title(f"Líneas detectadas cerca del punto A: {count}")
+        plt.title(f"Líneas más cercanas al punto A: {len(mejores_lineas)}")
         plt.axis("off")
         plt.show()
 
@@ -65,7 +69,7 @@ def detectar_lineas_hough(imagen_path, centro_a=(391, 200), mostrar=True, guarda
         salida_path = imagen_path.replace('.', '_lineas_hough.')
         cv2.imwrite(salida_path, output)
 
-    return count
+    return len(mejores_lineas)
 
 if __name__ == "__main__":
     ruta_imagen = "./bloque-motor.jpg"
